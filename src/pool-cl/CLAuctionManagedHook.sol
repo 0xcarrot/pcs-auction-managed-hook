@@ -42,7 +42,7 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
 
     mapping(PoolId => AuctionInfo) public auctionInfo;
     mapping(PoolId => PoolTokensInfo) public poolTokensInfo;
-    
+
     constructor(ICLPoolManager _poolManager, address _bidToken) CLBaseHook(_poolManager) Ownable(msg.sender) {
         bidToken = IERC20(_bidToken);
     }
@@ -68,11 +68,13 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
         );
     }
 
-    function afterInitialize(address, PoolKey calldata key, uint160, int24, bytes calldata) external override returns (bytes4) {
-        poolTokensInfo[key.toId()] = PoolTokensInfo({
-            token0: Currency.unwrap(key.currency0),
-            token1: Currency.unwrap(key.currency1)
-        });
+    function afterInitialize(address, PoolKey calldata key, uint160, int24, bytes calldata)
+        external
+        override
+        returns (bytes4)
+    {
+        poolTokensInfo[key.toId()] =
+            PoolTokensInfo({token0: Currency.unwrap(key.currency0), token1: Currency.unwrap(key.currency1)});
 
         return this.afterInitialize.selector;
     }
@@ -80,7 +82,7 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
     function startAuction(PoolId poolId) external {
         AuctionInfo storage auction = auctionInfo[poolId];
 
-        if(auction.managerEndTime > block.timestamp) {
+        if (auction.managerEndTime > block.timestamp) {
             revert("Manager already set");
         }
 
@@ -102,20 +104,20 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
     function bid(PoolId poolId, uint256 amount) external {
         AuctionInfo storage auction = auctionInfo[poolId];
 
-        if(auction.auctionEndTime < block.timestamp) {
+        if (auction.auctionEndTime < block.timestamp) {
             revert("Auction already started");
         }
 
-        if(auction.currentManager != address(0)) {
+        if (auction.currentManager != address(0)) {
             revert("Auction not started");
         }
 
-        if(amount <= auction.highestBid) {
+        if (amount <= auction.highestBid) {
             revert("Bid must be higher than highest bid");
         }
-        
+
         bidToken.transferFrom(msg.sender, address(this), amount);
-        if(auction.highestBid > 0) {
+        if (auction.highestBid > 0) {
             bidToken.transfer(auction.currentManager, auction.highestBid);
         }
 
@@ -126,11 +128,11 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
     function setCurrentFees(PoolId poolId, uint24 fee) external {
         AuctionInfo storage auction = auctionInfo[poolId];
 
-        if(auction.currentManager != msg.sender) {
+        if (auction.currentManager != msg.sender) {
             revert("Only manager can set fees");
         }
 
-        if(auction.managerEndTime < block.timestamp) {
+        if (auction.managerEndTime < block.timestamp) {
             revert("Not in manager mode");
         }
 
@@ -141,7 +143,6 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
         bidToken.transfer(auctionFeeReceiver, bidToken.balanceOf(address(this)));
     }
 
-
     function beforeSwap(address, PoolKey calldata key, ICLPoolManager.SwapParams calldata swapParams, bytes calldata)
         external
         override
@@ -150,16 +151,20 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
     {
         AuctionInfo storage auction = auctionInfo[key.toId()];
 
-        if(auction.currentManager == address(0) || auction.managerEndTime < block.timestamp) {
-            return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, auction.currentFee | LPFeeLibrary.OVERRIDE_FEE_FLAG);
+        if (auction.currentManager == address(0) || auction.managerEndTime < block.timestamp) {
+            return (
+                this.beforeSwap.selector,
+                BeforeSwapDeltaLibrary.ZERO_DELTA,
+                auction.currentFee | LPFeeLibrary.OVERRIDE_FEE_FLAG
+            );
         }
 
         uint256 fee;
-        if(swapParams.zeroForOne && swapParams.amountSpecified > 0) {
+        if (swapParams.zeroForOne && swapParams.amountSpecified > 0) {
             fee = (uint256(swapParams.amountSpecified) * auction.currentFee) / 1_000_000;
             auction.feesToken1 += (fee);
             IERC20(poolTokensInfo[key.toId()].token1).transferFrom(tx.origin, address(this), fee);
-        } else if(swapParams.zeroForOne && swapParams.amountSpecified < 0) {
+        } else if (swapParams.zeroForOne && swapParams.amountSpecified < 0) {
             fee = (uint256(-swapParams.amountSpecified) * auction.currentFee) / 1_000_000;
             auction.feesToken0 += (fee);
             IERC20(poolTokensInfo[key.toId()].token0).transferFrom(tx.origin, address(this), fee);
@@ -176,15 +181,18 @@ contract CLAuctionManagedHook is CLBaseHook, Ownable {
         return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
     }
 
-    function beforeRemoveLiquidity(address, PoolKey calldata key, ICLPoolManager.ModifyLiquidityParams calldata, bytes calldata) external override poolManagerOnly returns (bytes4) {
+    function beforeRemoveLiquidity(
+        address,
+        PoolKey calldata key,
+        ICLPoolManager.ModifyLiquidityParams calldata,
+        bytes calldata
+    ) external override poolManagerOnly returns (bytes4) {
         AuctionInfo memory auction = auctionInfo[key.toId()];
 
-        if(auction.lpWithdrawTime < block.timestamp) {
+        if (auction.lpWithdrawTime < block.timestamp) {
             revert("LP withdraw time over");
         }
-        
+
         return this.beforeRemoveLiquidity.selector;
     }
-
-
 }

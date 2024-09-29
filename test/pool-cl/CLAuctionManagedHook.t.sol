@@ -44,7 +44,7 @@ contract CLAuctionManagedHookTest is Test, CLTestUtils {
     function testStartAuction() public {
         hook.startAuction(key.toId());
 
-        (,,,uint256 managerEndTime,uint256 lpWithdrawTime,,,) = hook.auctionInfo(key.toId());
+        (,,, uint256 managerEndTime, uint256 lpWithdrawTime,,,) = hook.auctionInfo(key.toId());
 
         assertEq(lpWithdrawTime, block.timestamp + hook.LP_WITHDRAW_WINDOW());
         assertEq(managerEndTime, block.timestamp + hook.LP_WITHDRAW_WINDOW() + hook.AUCTION_TTL() + hook.MANAGER_TTL());
@@ -52,7 +52,7 @@ contract CLAuctionManagedHookTest is Test, CLTestUtils {
 
     function testBid() public {
         address user1 = address(0x1);
-        
+
         // Start the auction
         hook.startAuction(key.toId());
 
@@ -89,10 +89,9 @@ contract CLAuctionManagedHookTest is Test, CLTestUtils {
         // Set new fees
         hook.setCurrentFees(key.toId(), 1000);
 
-        (,,,,,,,uint24 currentFee) = hook.auctionInfo(key.toId());
+        (,,,,,,, uint24 currentFee) = hook.auctionInfo(key.toId());
         assertEq(currentFee, 1000);
 
         vm.stopPrank();
     }
-
 }
